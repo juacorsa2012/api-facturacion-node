@@ -1,11 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { mockDeep, mockReset, type DeepMockProxy } from "vitest-mock-extended"
-import {
-  Estado,
-  Prisma,
-  type Cliente,
-  type PrismaClient,
-} from "../../../generated/prisma/client.js"
+import { Estado, Prisma, type Cliente, type PrismaClient} from "../../../generated/prisma/client.js"
 import { ClienteService } from "./cliente.service.js"
 import {
   ClienteDuplicadoError,
@@ -24,12 +19,15 @@ const prismaError = (code: string) =>
 const crearCliente = (overrides: Partial<Cliente> = {}) =>
   ({
     id: 1,
-    nombreCorto: "ACME",
+    nombreCorto: "A",
     estado: Estado.ALTA,
     fechaBaja: null,
     motivoBaja: null,
     ...overrides,
   }) as Cliente
+
+
+
 
 describe("ClienteService", () => {
   const db: DeepMockProxy<PrismaClient> = mockDeep<PrismaClient>()

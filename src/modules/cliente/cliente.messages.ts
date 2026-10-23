@@ -73,9 +73,8 @@ export const clienteMessages = {
     clienteDadoBaja: "El cliente se ha dado de baja correctamente",
     clienteDadoAlta: "El cliente se ha dado de alta correctamente",
     sinCambios: "Debes enviar al menos un campo a actualizar",
-    camposNoPermitidos: (campos: string[]) =>
-      `Campos no permitidos: ${campos.join(", ")}`,
-  },
+      camposNoPermitidos: (campos: string[]) => `Campos no permitidos: ${campos.join(", ")}` 
+    },
 
   // Errores de dominio (los usa cliente.errors.ts)
   errores: {

@@ -39,15 +39,15 @@ enum Vencimiento {
 
 model Cliente {
   id                   Int         @id @default(autoincrement())
-  nombreCorto          String      @unique @map("nombre_corto") @db.VarChar(100)
+  nombreCorto          String      @unique @db.VarChar(100) @map("nombre_corto")
   nombreLargo          String      @map("nombre_largo") @db.VarChar(255)
   direccion            String      @db.VarChar(255)
-  codigoPostal         String      @map("codigo_postal") @db.VarChar(10)
+  codigoPostal         String      @db.VarChar(10) @map("codigo_postal")
   nif                  String      @db.VarChar(25)
   formaPago            FormaPago   @default(TRANSFERENCIA) @map("forma_pago")
   email                String      @db.VarChar(150)
   empresa              Empresa     @default(LEMS) @map("empresa")
-  iva                  Decimal     @default(21.0) @db.Decimal(5, 2)
+  iva                  Decimal     @db.Decimal(5, 2) @default(21.0)
   precioDesplazamiento Int         @map("precio_desplazamiento")
   precioHoraManoObra   Int         @map("pecio_hora_mano_obra")
   fechaBaja            DateTime?   @map("fecha_baja")

@@ -24,9 +24,3 @@ app.use((_req, _res, next) => {
 })
 
 app.use(errorHandler)
-
-
-
-// $env:DATABASE_URL = "postgresql://postgres:123456@localhost:5432/facturacion_test?schema=public"
-// npx prisma migrate deploy
-// Remove-Item Env:DATABASE_URL
