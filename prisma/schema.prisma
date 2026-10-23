@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Estado {
+  ALTA
+  BAJA
+
+  @@map("estado")
+}
+
+enum FormaPago {
+  TRANSFERENCIA
+  RECIBO
+
+  @@map("forma_pago")
+}
+
+enum Empresa {
+  LEMS
+  GTRES
+
+  @@map("empresa")
+}
+
+enum Vencimiento {
+  UN_MES
+  DOS_MESES
+  VEINTE_DIAS
+  QUINCE_DIAS
+
+  @@map("vencimiento")
+}
+
+model Cliente {
+  id                   Int         @id @default(autoincrement())
+  nombreCorto          String      @unique @map("nombre_corto") @db.VarChar(100)
+  nombreLargo          String      @map("nombre_largo") @db.VarChar(255)
+  direccion            String      @db.VarChar(255)
+  codigoPostal         String      @map("codigo_postal") @db.VarChar(10)
+  nif                  String      @db.VarChar(25)
+  formaPago            FormaPago   @default(TRANSFERENCIA) @map("forma_pago")
+  email                String      @db.VarChar(150)
+  empresa              Empresa     @default(LEMS) @map("empresa")
+  iva                  Decimal     @default(21.0) @db.Decimal(5, 2)
+  precioDesplazamiento Int         @map("precio_desplazamiento")
+  precioHoraManoObra   Int         @map("pecio_hora_mano_obra")
+  fechaBaja            DateTime?   @map("fecha_baja")
+  motivoBaja           String?     @map("motivo_baja") @db.VarChar(255)
+  vencimiento          Vencimiento @default(UN_MES)
+  estado               Estado      @default(ALTA)
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  @@map("clientes")  
+  @@index([estado])
+  @@index([empresa])
+}

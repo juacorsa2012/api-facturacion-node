@@ -1,0 +1,232 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
+import { mockDeep, mockReset, type DeepMockProxy } from "vitest-mock-extended"
+import {
+  Estado,
+  Prisma,
+  type Cliente,
+  type PrismaClient,
+} from "../../../generated/prisma/client.js"
+import { ClienteService } from "./cliente.service.js"
+import {
+  ClienteDuplicadoError,
+  ClienteNoEncontradoError,
+  ClienteYaDadoDeAltaError,
+  ClienteYaDadoDeBajaError,
+} from "./cliente.errors.js"
+import type { CrearClienteDto } from "./cliente.schema.js"
+
+const prismaError = (code: string) =>
+  new Prisma.PrismaClientKnownRequestError("error de prueba", {
+    code,
+    clientVersion: "test",
+  })
+
+const crearCliente = (overrides: Partial<Cliente> = {}) =>
+  ({
+    id: 1,
+    nombreCorto: "ACME",
+    estado: Estado.ALTA,
+    fechaBaja: null,
+    motivoBaja: null,
+    ...overrides,
+  }) as Cliente
+
+describe("ClienteService", () => {
+  const db: DeepMockProxy<PrismaClient> = mockDeep<PrismaClient>()
+  let service: ClienteService
+
+  beforeEach(() => {
+    mockReset(db)
+    service = new ClienteService(db)
+  })
+
+  describe("obtenerPorId", () => {
+    it("devuelve el cliente si existe", async () => {
+      const cliente = crearCliente()
+      db.cliente.findUnique.mockResolvedValue(cliente)
+
+      await expect(service.obtenerPorId(1)).resolves.toEqual(cliente)
+      expect(db.cliente.findUnique).toHaveBeenCalledWith({ where: { id: 1 } })
+    })
+
+    it("lanza ClienteNoEncontradoError si no existe", async () => {
+      db.cliente.findUnique.mockResolvedValue(null)
+
+      await expect(service.obtenerPorId(99)).rejects.toBeInstanceOf(
+        ClienteNoEncontradoError,
+      )
+    })
+  })
+
+  describe("crear", () => {
+    const data = { nombreCorto: "ACME" } as CrearClienteDto
+
+    it("devuelve el cliente creado", async () => {
+      const cliente = crearCliente()
+      db.cliente.create.mockResolvedValue(cliente)
+
+      await expect(service.crear(data)).resolves.toEqual(cliente)
+    })
+
+    it("traduce P2002 a ClienteDuplicadoError", async () => {
+      db.cliente.create.mockRejectedValue(prismaError("P2002"))
+
+      await expect(service.crear(data)).rejects.toBeInstanceOf(
+        ClienteDuplicadoError,
+      )
+    })
+
+    it("relanza cualquier otro error sin transformarlo", async () => {
+      const error = prismaError("P2003")
+      db.cliente.create.mockRejectedValue(error)
+
+      await expect(service.crear(data)).rejects.toBe(error)
+    })
+  })
+
+  describe("actualizar", () => {
+    it("devuelve el cliente actualizado", async () => {
+      const cliente = crearCliente({ nombreCorto: "NUEVO" })
+      db.cliente.update.mockResolvedValue(cliente)
+
+      await expect(
+        service.actualizar(1, { nombreCorto: "NUEVO" }),
+      ).resolves.toEqual(cliente)
+    })
+
+    it("traduce P2025 a ClienteNoEncontradoError", async () => {
+      db.cliente.update.mockRejectedValue(prismaError("P2025"))
+
+      await expect(
+        service.actualizar(99, { nombreCorto: "X" }),
+      ).rejects.toBeInstanceOf(ClienteNoEncontradoError)
+    })
+
+    it("traduce P2002 a ClienteDuplicadoError si se envió nombreCorto", async () => {
+      db.cliente.update.mockRejectedValue(prismaError("P2002"))
+
+      await expect(
+        service.actualizar(1, { nombreCorto: "ACME" }),
+      ).rejects.toBeInstanceOf(ClienteDuplicadoError)
+    })
+
+    it("relanza P2002 si no se envió nombreCorto", async () => {
+      const error = prismaError("P2002")
+      db.cliente.update.mockRejectedValue(error)
+
+      await expect(service.actualizar(1, { email: "a@b.com" })).rejects.toBe(
+        error,
+      )
+    })
+  })
+
+  describe("darBaja", () => {
+    const data = { motivoBaja: "Impago" }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it("lanza ClienteNoEncontradoError si no existe", async () => {
+      db.cliente.findUnique.mockResolvedValue(null)
+
+      await expect(service.darBaja(99, data)).rejects.toBeInstanceOf(
+        ClienteNoEncontradoError,
+      )
+      expect(db.cliente.update).not.toHaveBeenCalled()
+    })
+
+    it("lanza ClienteYaDadoDeBajaError si ya está de baja", async () => {
+      db.cliente.findUnique.mockResolvedValue(
+        crearCliente({ estado: Estado.BAJA }),
+      )
+
+      await expect(service.darBaja(1, data)).rejects.toBeInstanceOf(
+        ClienteYaDadoDeBajaError,
+      )
+      expect(db.cliente.update).not.toHaveBeenCalled()
+    })
+
+    it("da de baja con estado, fecha y motivo", async () => {
+      vi.useFakeTimers()
+      const ahora = new Date("2026-10-23T10:00:00Z")
+      vi.setSystemTime(ahora)
+
+      db.cliente.findUnique.mockResolvedValue(crearCliente())
+      db.cliente.update.mockResolvedValue(crearCliente({ estado: Estado.BAJA }))
+
+      await service.darBaja(1, data)
+
+      expect(db.cliente.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          estado: Estado.BAJA,
+          fechaBaja: ahora,
+          motivoBaja: "Impago",
+        },
+      })
+    })
+  })
+
+  describe("darAlta", () => {
+    it("lanza ClienteNoEncontradoError si no existe", async () => {
+      db.cliente.findUnique.mockResolvedValue(null)
+
+      await expect(service.darAlta(99)).rejects.toBeInstanceOf(
+        ClienteNoEncontradoError,
+      )
+    })
+
+    it("lanza ClienteYaDadoDeAltaError si ya está de alta", async () => {
+      db.cliente.findUnique.mockResolvedValue(crearCliente())
+
+      await expect(service.darAlta(1)).rejects.toBeInstanceOf(
+        ClienteYaDadoDeAltaError,
+      )
+      expect(db.cliente.update).not.toHaveBeenCalled()
+    })
+
+    it("reactiva y limpia fechaBaja y motivoBaja", async () => {
+      db.cliente.findUnique.mockResolvedValue(
+        crearCliente({
+          estado: Estado.BAJA,
+          fechaBaja: new Date(),
+          motivoBaja: "Impago",
+        }),
+      )
+      db.cliente.update.mockResolvedValue(crearCliente())
+
+      await service.darAlta(1)
+
+      expect(db.cliente.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { estado: Estado.ALTA, fechaBaja: null, motivoBaja: null },
+      })
+    })
+  })
+
+  describe("obtenerTodos", () => {
+    it("aplica filtros, orden y paginación, y calcula los metadatos", async () => {
+      const items = [crearCliente()]
+      db.$transaction.mockResolvedValue([items, 45])
+
+      const resultado = await service.obtenerTodos({
+        estado: Estado.ALTA,
+        empresa: undefined,
+        page: 3,
+        limit: 20,
+      })
+
+      expect(db.cliente.findMany).toHaveBeenCalledWith({
+        where: { estado: Estado.ALTA, empresa: undefined },
+        orderBy: { nombreCorto: "asc" },
+        skip: 40,
+        take: 20,
+      })
+      expect(resultado).toEqual({
+        items,
+        meta: { total: 45, page: 3, limit: 20, totalPages: 3 },
+      })
+    })
+  })
+})
